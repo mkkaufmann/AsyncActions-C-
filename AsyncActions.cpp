@@ -2,6 +2,7 @@
 #include <pthread.h>
 #include <future>
 #include <functional>
+#include <vector>
 
 //test subsystem for async actions
 class TestSubsystem{
@@ -156,19 +157,18 @@ int main()
 	AsyncAction action1 = *AsyncActionFactory::makeAsyncAction()->hasTrigger(ActionTrigger([]()->bool{return true;}))->hasAction(Action(test1.incrementCount, test1.reachedAmount));
 	AsyncAction action3 = *AsyncActionFactory::makeAsyncAction()->hasTrigger(ActionTrigger(test1.reachedAmount))->hasAction(Action([&](){std::cout<<test1.count<<std::endl;}, [](){return true;}));
 	AsyncAction action4 = *AsyncActionFactory::makeAsyncAction()->hasTrigger(ActionTrigger(test2.reachedAmount))->hasAction(Action([&](){std::cout<<test2.count<<std::endl;}, [](){return true;}));
+	std::vector<AsyncAction> actions;
+	actions.push_back(action1);
+	actions.push_back(action2);
+	actions.push_back(action3);
+	actions.push_back(action4);
+	std::vector<AsyncAction>::iterator it;
 	//std::future<void> result( std::async());
 	
 	//TODO make array of async actions and just look through in this pattern
 	while(true){
-		action4.run();
-		action3.run();
-		//std::cout<<action3.isFinished();
-		if(action1.isFinished()){
-			action2.run();
-			//std::cout << "1 finished";
-		}else{
-			action1.run();
-			//std::cout << "1 running";
+		for(auto &it : actions){
+			it.run();
 		}
 	}
 	return 0;
