@@ -25,15 +25,26 @@ public:
 		reachedAmount = [&]()->bool{
 			return reachedObjectAmount(this);
 		};
-
+			
 	}
+	
+	std::function<bool()> getCustomAmountTrigger(int amount){
+	        return [this, amount]()->bool{
+			return this->hasReachedCustomAmount(amount);
+		};
+	}	       
+
+	bool hasReachedCustomAmount(int amount){
+		return count >= amount;
+	}
+
 	int targetAmount;
 	int count;
 	std::function<bool()> reachedAmount;
 	std::function<void()> incrementCount;
 private:
-	
 	std::function<void(TestSubsystem*)> incrementObjectCount;
+	std::function<bool()> reachedCustomAmount();
 	std::function<bool(TestSubsystem*)> reachedObjectAmount;
 };
 
@@ -156,12 +167,14 @@ int main()
 	AsyncAction action2 = *AsyncActionFactory::makeAsyncAction()->hasTrigger(ActionTrigger(test1.reachedAmount))->hasAction(Action(test2.incrementCount, test2.reachedAmount));
 	AsyncAction action1 = *AsyncActionFactory::makeAsyncAction()->hasTrigger(ActionTrigger([]()->bool{return true;}))->hasAction(Action(test1.incrementCount, test1.reachedAmount));
 	AsyncAction action3 = *AsyncActionFactory::makeAsyncAction()->hasTrigger(ActionTrigger(test1.reachedAmount))->hasAction(Action([&](){std::cout<<test1.count<<std::endl;}, [](){return true;}));
-	AsyncAction action4 = *AsyncActionFactory::makeAsyncAction()->hasTrigger(ActionTrigger(test2.reachedAmount))->hasAction(Action([&](){std::cout<<test2.count<<std::endl;}, [](){return true;}));
+	AsyncAction action4 = *AsyncActionFactory::makeAsyncAction()->hasTrigger(ActionTrigger(test2.reachedAmount))->hasAction(Action([&](){std::cout<<test2.count<<std::endl;}, [](){return true;}));	
+	AsyncAction action5 = *AsyncActionFactory::makeAsyncAction()->hasTrigger(ActionTrigger(test2.getCustomAmountTrigger(500)))->hasAction(Action([&](){std::cout<<test2.count<<std::endl;}, test2.getCustomAmountTrigger(520)));
 	std::vector<AsyncAction> actions;
 	actions.push_back(action1);
 	actions.push_back(action2);
 	actions.push_back(action3);
 	actions.push_back(action4);
+	actions.push_back(action5);
 	std::vector<AsyncAction>::iterator it;
 	//std::future<void> result( std::async());
 	
