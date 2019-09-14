@@ -1,0 +1,175 @@
+#include <iostream>
+#include <pthread.h>
+#include <future>
+#include <functional>
+
+//test subsystem for async actions
+class TestSubsystem{
+public:
+	TestSubsystem(int _targetAmount){
+		count = 0;
+		targetAmount = _targetAmount;
+		incrementObjectCount = [](TestSubsystem* object){
+			object->count++;
+			//std::cout << object->count << std::endl;	
+		};
+		incrementCount = [&](){
+			incrementObjectCount(this);
+		};
+		reachedObjectAmount = [](TestSubsystem* object)->bool{
+			//std::cout << object->count << ", " <<  object->targetAmount << ", " << (object->count >= object->targetAmount ) << std::endl; 
+
+			return object->count >= object->targetAmount;
+		};	
+		reachedAmount = [&]()->bool{
+			return reachedObjectAmount(this);
+		};
+
+	}
+	int targetAmount;
+	int count;
+	std::function<bool()> reachedAmount;
+	std::function<void()> incrementCount;
+private:
+	
+	std::function<void(TestSubsystem*)> incrementObjectCount;
+	std::function<bool(TestSubsystem*)> reachedObjectAmount;
+};
+
+class ActionTrigger{
+public:
+	
+	//default constructor
+	ActionTrigger(){
+		triggerActivated = []()->bool{};
+	}
+
+	ActionTrigger(std::function<bool()> trigger){
+		triggerActivated = trigger;
+	}
+	//check whether trigger is activated
+	bool isTriggered(){
+		return triggerActivated();
+	}
+private:
+	//lambda function for determining trigger activation
+	std::function<bool()> triggerActivated;
+};
+
+class Action{
+public:
+	//default constructior
+	Action(){
+		actionMethod = [](){};
+		finishedMethod = []()->bool{return true;};
+		firstRun = true;
+	}
+
+	Action(std::function<void()> _actionMethod, std::function<bool()> finished){
+		actionMethod = _actionMethod;
+		finishedMethod = finished;
+		firstRun = true;
+	}
+	//runs action if possible
+	void run(){
+		if(!isFinished() || firstRun){
+			//std::cout << isFinished();
+			actionMethod();
+			firstRun = false;
+		}
+	}
+
+	bool isFinished(){
+		return finishedMethod() && !firstRun;
+	}
+private:
+	//used for single run functions
+	bool firstRun;
+	std::function<void()> actionMethod;
+	std::function<bool()> finishedMethod;
+};
+
+class AsyncAction{
+public:
+	//default constructor
+	AsyncAction(){
+		triggerInitialized = false;
+		actionInitialized = false;	
+		trigger = ActionTrigger([]()->bool{return true;});
+		action = Action();
+	}
+	
+	//add trigger to action
+	AsyncAction* hasTrigger(ActionTrigger _trigger){
+		trigger = _trigger;
+		triggerInitialized = true;
+		return this;
+	}
+	//add avtion
+	AsyncAction* hasAction(Action _action){
+		action = _action;
+		actionInitialized = true;
+		return this;
+	}
+	//tun yhr action once triggered
+	void run(){
+		if(trigger.isTriggered()){
+			action.run();
+		}	
+	}
+
+	bool isFinished(){
+		return action.isFinished();
+	}	
+private:
+	//TODO: implement safeguards making sure tese are initialized
+	bool triggerInitialized;
+	bool actionInitialized;
+
+	ActionTrigger trigger;
+	Action action;
+};
+
+//creates AsyncActions
+class AsyncActionFactory{
+public:
+	//creates an async action
+	static AsyncAction* makeAsyncAction(){
+		AsyncAction* action;
+		action = new AsyncAction;
+		*action = AsyncAction();
+		return action;
+	}
+private:
+	
+};
+
+void called_from_async(){
+	std::cout << "Async call" << std::endl;
+}
+
+int main()
+{
+	TestSubsystem test1 = TestSubsystem(1000);
+	TestSubsystem test2 = TestSubsystem(20000);
+	AsyncAction action2 = *AsyncActionFactory::makeAsyncAction()->hasTrigger(ActionTrigger(test1.reachedAmount))->hasAction(Action(test2.incrementCount, test2.reachedAmount));
+	AsyncAction action1 = *AsyncActionFactory::makeAsyncAction()->hasTrigger(ActionTrigger([]()->bool{return true;}))->hasAction(Action(test1.incrementCount, test1.reachedAmount));
+	AsyncAction action3 = *AsyncActionFactory::makeAsyncAction()->hasTrigger(ActionTrigger(test1.reachedAmount))->hasAction(Action([&](){std::cout<<test1.count<<std::endl;}, [](){return true;}));
+	AsyncAction action4 = *AsyncActionFactory::makeAsyncAction()->hasTrigger(ActionTrigger(test2.reachedAmount))->hasAction(Action([&](){std::cout<<test2.count<<std::endl;}, [](){return true;}));
+	//std::future<void> result( std::async());
+	
+	//TODO make array of async actions and just look through in this pattern
+	while(true){
+		action4.run();
+		action3.run();
+		//std::cout<<action3.isFinished();
+		if(action1.isFinished()){
+			action2.run();
+			//std::cout << "1 finished";
+		}else{
+			action1.run();
+			//std::cout << "1 running";
+		}
+	}
+	return 0;
+}
